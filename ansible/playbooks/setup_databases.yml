@@ -1,0 +1,37 @@
+---
+- name: Setup Databases (MySQL & Redis)
+  hosts: databases
+  become: yes
+  
+  tasks:
+    # بدلاً من استخدام pip، سنستخدم apt لتثبيت المكتبة المتوافقة مع النظام
+    - name: Ensure Docker Python library is installed via APT
+      apt:
+        name: python3-docker
+        state: present
+        update_cache: yes
+
+    # 2. إعداد MySQL
+    - name: Run MySQL Container
+      community.docker.docker_container:
+        name: mysql-db
+        image: mysql:8.0
+        state: started
+        restart_policy: always
+        published_ports:
+          - "3306:3306"
+        env:
+          MYSQL_ROOT_PASSWORD: "YourSecurePassword"
+          MYSQL_DATABASE: "myapp_db"
+      when: inventory_hostname == "mysql_server"
+
+    # 3. إعداد Redis
+    - name: Run Redis Container
+      community.docker.docker_container:
+        name: redis-cache
+        image: redis:latest
+        state: started
+        restart_policy: always
+        published_ports:
+          - "6379:6379"
+      when: inventory_hostname == "redis_server"
