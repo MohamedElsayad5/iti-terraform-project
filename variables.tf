@@ -14,22 +14,23 @@ variable "project_name" {
     default = "iti-terraform-project"
 }
 
-
 variable "app_ami" {
-    type = string
-    default = "ami-0e2c8ca11b214c1d1" 
+    type    = string
+    default = "ami-04b70fa74e45c3917" # Ubuntu 24.04 LTS in us-east-1
 }
+
+variable "bastion_instance_ami" {
+    type    = string
+    default = "ami-04b70fa74e45c3917" 
+}
+
 
 variable "app_instance_type" {
     type = string
     default = "t3.micro"
 }
 
-variable "bastion_instance_ami" {
-    type = string
-    default = "ami-0e2c8ca11b214c1d1" 
-  
-}
+
 
 variable "bastion_instance_type" {
     type = string
