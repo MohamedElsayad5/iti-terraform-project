@@ -2,35 +2,35 @@ pipeline {
     agent any
     
     environment {
-        // الـ Credentials الأساسية من جينكينز
+        
         AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_KEY')
         ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
     
     stages {
-        // المرحلة الأولى: سحب الكود من GitHub (Continuous Integration)
+        
         stage('CI: Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // المرحلة الثانية: بناء البنية التحتية (Infrastructure as Code)
+        
         stage('CD: Infrastructure Provisioning') {
             steps {
                 sh 'terraform init'
                 sh 'terraform apply -auto-approve'
                 
                 script {
-                    // استخراج الـ IPs لاستخدامها في المراحل التالية
+                    
                     env.BASTION_IP = sh(script: "terraform output -raw bastion_public_ip", returnStdout: true).trim()
                     env.APP_IP = sh(script: "terraform output -raw app_private_ip", returnStdout: true).trim()
                 }
             }
         }
 
-        // المرحلة الثالثة: تحديث الـ Inventory
+        
         stage('CD: Update Inventory') {
             steps {
                 sh '''
@@ -42,16 +42,16 @@ pipeline {
             }
         }
         
-        // المرحلة الرابعة: تهيئة السيرفرات (Configuration Management)
+        
         stage('CD: Configuration & Deployment') {
             steps {
                 dir('ansible') {
                     withCredentials([sshUserPrivateKey(credentialsId: 'aws-ssh-key', keyFileVariable: 'MY_KEY')]) {
                         script {
-                            // إعداد الـ ProxyJump للوصول للسيرفر الـ Private
+                            
                             def sshArgs = "-o ProxyCommand='ssh -W %h:%p -q ubuntu@${env.BASTION_IP} -i ${MY_KEY} -o StrictHostKeyChecking=no' -o StrictHostKeyChecking=no"
                             
-                            // تشغيل الـ Playbook لتثبيت Docker أو أي تطبيق آخر
+                            
                             sh """
                                 ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml \
                                 -u ubuntu \
