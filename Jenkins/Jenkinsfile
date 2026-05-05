@@ -30,19 +30,14 @@ pipeline {
         stage('Configure Servers') {
             steps {
                 dir('ansible') {
-                    // استخدام SSH Agent بيخلي المفتاح متاح للـ ProxyCommand تلقائياً
-                    sshagent(['aws-ssh-key']) {
-                        ansiblePlaybook(
-                            playbook: 'playbooks/install_docker.yml',
-                            inventory: 'inventory/hosts.ini',
-                            installation: 'ansible',
-                            disableHostKeyChecking: true,
-                            extraVars: [
-                                // هنا بنقول لأنسيبل: "استخدم الـ Bastion عشان توصل لأي حد تاني"
-                                // الـ -A بتعمل Forwarding للـ SSH Agent
-                                ansible_ssh_common_args: "-o ProxyCommand='ssh -A -W %h:%p -q ubuntu@${env.BASTION_IP} -o StrictHostKeyChecking=no'"
-                            ]
-                        )
+                    // استخدام الـ credentials مباشرة كـ File
+                    withCredentials([sshUserPrivateKey(credentialsId: 'aws-ssh-key', keyFileVariable: 'MY_KEY')]) {
+                        sh """
+                        ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml \
+                        -u ubuntu \
+                        --private-key ${MY_KEY} \
+                        --extra-vars "ansible_ssh_common_args='-o ProxyCommand=\"ssh -W %h:%p -q ubuntu@${env.BASTION_IP} -i ${MY_KEY} -o StrictHostKeyChecking=no\"'"
+                        """
                     }
                 }
             }
