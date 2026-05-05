@@ -1,20 +1,25 @@
 pipeline {
     agent any
     
+    // مكان الـ Environment الصحيح هنا
+    environment {
+        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_KEY')
+    }
+    
     stages {
         stage('Deploy Infrastructure') {
             steps {
-                dir('terraform') {
-                    sh 'terraform init'
-                    sh 'terraform apply -auto-approve'
-                }
+                // هينفذ التيرارفورم في الـ Root حيث توجد ملفات الـ .tf
+                sh 'terraform init'
+                sh 'terraform apply -auto-approve'
             }
         }
         
         stage('Configure Servers') {
             steps {
+                // هيدخل فولدر ansible عشان يشغل الـ playbooks
                 dir('ansible') {
-                
                     ansiblePlaybook(
                         playbook: 'playbooks/install_docker.yml',
                         inventory: 'inventory/hosts.ini',
