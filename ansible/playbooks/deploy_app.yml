@@ -1,0 +1,20 @@
+---
+- name: Deploy Test Application to Verify Infrastructure
+  hosts: app_server
+  become: yes
+  
+  tasks:
+    - name: Ensure python3-docker is installed
+      apt:
+        name: python3-docker
+        state: present
+        update_cache: yes
+
+    - name: Run Whoami Container
+      community.docker.docker_container:
+        name: test-web-app
+        image: traefik/whoami:latest
+        state: started
+        restart_policy: always
+        published_ports:
+          - "80:80"  # بنفتح بورت 80 عشان الـ Load Balancer يقدر يعمل Health Check

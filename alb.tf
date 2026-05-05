@@ -7,10 +7,19 @@ resource "aws_lb" "main_alb" {
 }
 
 resource "aws_lb_target_group" "app_tg" {
-  name     = "${var.project_name}-tg"
-  port     = 8080 # بورت التطبيق
+  name     = "${var.project_name}-tg-v2" # غيرنا الاسم هنا عشان م يحصلش تعارض
+  port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
+
+  health_check {
+    port     = "80"
+    path     = "/"
+    protocol = "HTTP"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+  }
+  # شيل الـ lifecycle block خالص لو موجود
 }
 
 resource "aws_lb_listener" "http" {
