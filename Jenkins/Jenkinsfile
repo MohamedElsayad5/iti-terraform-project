@@ -2,35 +2,37 @@ pipeline {
     agent any
     
     environment {
-        // تأكد أن هذه الـ Credentials متوفرة في Jenkins بنفس الأسماء
+        // الـ Credentials الأساسية من جينكينز
         AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_KEY')
         ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
     
     stages {
-        stage('Checkout Code') {
+        // المرحلة الأولى: سحب الكود من GitHub (Continuous Integration)
+        stage('CI: Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Deploy Infrastructure') {
+        // المرحلة الثانية: بناء البنية التحتية (Infrastructure as Code)
+        stage('CD: Infrastructure Provisioning') {
             steps {
-                // تنفيذ التيرافورم
                 sh 'terraform init'
                 sh 'terraform apply -auto-approve'
                 
-                // سحب الـ IPs من التيرافورم وتخزينها في Environment Variables
                 script {
+                    // استخراج الـ IPs لاستخدامها في المراحل التالية
                     env.BASTION_IP = sh(script: "terraform output -raw bastion_public_ip", returnStdout: true).trim()
                     env.APP_IP = sh(script: "terraform output -raw app_private_ip", returnStdout: true).trim()
-                    
-                    echo "Bastion IP: ${env.BASTION_IP}"
-                    echo "App Server IP: ${env.APP_IP}"
                 }
+            }
+        }
 
-                // إنشاء ملف الـ Inventory ديناميكياً
+        // المرحلة الثالثة: تحديث الـ Inventory
+        stage('CD: Update Inventory') {
+            steps {
                 sh '''
                     echo "[bastion_host]" > ansible/inventory/hosts.ini
                     echo "${BASTION_IP} ansible_user=ubuntu" >> ansible/inventory/hosts.ini
@@ -40,16 +42,16 @@ pipeline {
             }
         }
         
-        stage('Configure Servers') {
+        // المرحلة الرابعة: تهيئة السيرفرات (Configuration Management)
+        stage('CD: Configuration & Deployment') {
             steps {
                 dir('ansible') {
-                    // استخدام الـ Key المخزن في جينكينز
                     withCredentials([sshUserPrivateKey(credentialsId: 'aws-ssh-key', keyFileVariable: 'MY_KEY')]) {
                         script {
-                            // إعداد الـ ProxyCommand للوصول للسيرفر الخاص عبر الـ Bastion
-                            // استخدمنا الـ Double Quotes لضمان سلامة الـ Variable Expansion
+                            // إعداد الـ ProxyJump للوصول للسيرفر الـ Private
                             def sshArgs = "-o ProxyCommand='ssh -W %h:%p -q ubuntu@${env.BASTION_IP} -i ${MY_KEY} -o StrictHostKeyChecking=no' -o StrictHostKeyChecking=no"
                             
+                            // تشغيل الـ Playbook لتثبيت Docker أو أي تطبيق آخر
                             sh """
                                 ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml \
                                 -u ubuntu \
@@ -64,8 +66,11 @@ pipeline {
     }
     
     post {
-        always {
-            echo "Pipeline finished."
+        success {
+            echo "CI/CD Pipeline Completed Successfully!"
+        }
+        failure {
+            echo "Pipeline Failed. Check the logs."
         }
     }
 }
