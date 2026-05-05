@@ -2,27 +2,40 @@ pipeline {
     agent any
     
     environment {
+        // تأكد أن هذه الـ Credentials متوفرة في Jenkins بنفس الأسماء
         AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_KEY')
         ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
     
     stages {
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Deploy Infrastructure') {
             steps {
+                // تنفيذ التيرافورم
                 sh 'terraform init'
                 sh 'terraform apply -auto-approve'
                 
+                // سحب الـ IPs من التيرافورم وتخزينها في Environment Variables
                 script {
                     env.BASTION_IP = sh(script: "terraform output -raw bastion_public_ip", returnStdout: true).trim()
                     env.APP_IP = sh(script: "terraform output -raw app_private_ip", returnStdout: true).trim()
+                    
+                    echo "Bastion IP: ${env.BASTION_IP}"
+                    echo "App Server IP: ${env.APP_IP}"
                 }
 
+                // إنشاء ملف الـ Inventory ديناميكياً
                 sh '''
                     echo "[bastion_host]" > ansible/inventory/hosts.ini
-                    echo "${BASTION_IP}" >> ansible/inventory/hosts.ini
+                    echo "${BASTION_IP} ansible_user=ubuntu" >> ansible/inventory/hosts.ini
                     echo "\n[app_server]" >> ansible/inventory/hosts.ini
-                    echo "${APP_IP}" >> ansible/inventory/hosts.ini
+                    echo "${APP_IP} ansible_user=ubuntu" >> ansible/inventory/hosts.ini
                 '''
             }
         }
@@ -30,17 +43,29 @@ pipeline {
         stage('Configure Servers') {
             steps {
                 dir('ansible') {
-                    // استخدام الـ credentials مباشرة كـ File
+                    // استخدام الـ Key المخزن في جينكينز
                     withCredentials([sshUserPrivateKey(credentialsId: 'aws-ssh-key', keyFileVariable: 'MY_KEY')]) {
-                        sh """
-                        ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml \
-                        -u ubuntu \
-                        --private-key ${MY_KEY} \
-                        --extra-vars "ansible_ssh_common_args='-o ProxyCommand=\"ssh -W %h:%p -q ubuntu@${env.BASTION_IP} -i ${MY_KEY} -o StrictHostKeyChecking=no\"'"
-                        """
+                        script {
+                            // إعداد الـ ProxyCommand للوصول للسيرفر الخاص عبر الـ Bastion
+                            // استخدمنا الـ Double Quotes لضمان سلامة الـ Variable Expansion
+                            def sshArgs = "-o ProxyCommand='ssh -W %h:%p -q ubuntu@${env.BASTION_IP} -i ${MY_KEY} -o StrictHostKeyChecking=no' -o StrictHostKeyChecking=no"
+                            
+                            sh """
+                                ansible-playbook -i inventory/hosts.ini playbooks/install_docker.yml \
+                                -u ubuntu \
+                                --private-key=${MY_KEY} \
+                                --ssh-common-args="${sshArgs}"
+                            """
+                        }
                     }
                 }
             }
+        }
+    }
+    
+    post {
+        always {
+            echo "Pipeline finished."
         }
     }
 }
