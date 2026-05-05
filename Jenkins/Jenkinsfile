@@ -13,7 +13,6 @@ pipeline {
                 sh 'terraform init'
                 sh 'terraform apply -auto-approve'
                 
-                // بنحفظ الـ Bastion IP في متغير عشان نستخدمه تحت
                 script {
                     env.BASTION_IP = sh(script: "terraform output -raw bastion_public_ip", returnStdout: true).trim()
                     env.APP_IP = sh(script: "terraform output -raw app_private_ip", returnStdout: true).trim()
@@ -31,17 +30,20 @@ pipeline {
         stage('Configure Servers') {
             steps {
                 dir('ansible') {
-                    // شلنا القوس الزيادة واستخدمنا متغير الـ BASTION_IP
-                    ansiblePlaybook(
-                        playbook: 'playbooks/install_docker.yml',
-                        inventory: 'inventory/hosts.ini',
-                        credentialsId: 'aws-ssh-key',
-                        installation: 'ansible',
-                        disableHostKeyChecking: true,
-                        extraVars: [
-                            ansible_ssh_common_args: "-o ProxyCommand='ssh -W %h:%p -q ubuntu@${env.BASTION_IP} -i my-terraform-key -o StrictHostKeyChecking=no'"
-                        ]
-                    )
+                    // استخدام SSH Agent بيخلي المفتاح متاح للـ ProxyCommand تلقائياً
+                    sshagent(['aws-ssh-key']) {
+                        ansiblePlaybook(
+                            playbook: 'playbooks/install_docker.yml',
+                            inventory: 'inventory/hosts.ini',
+                            installation: 'ansible',
+                            disableHostKeyChecking: true,
+                            extraVars: [
+                                // هنا بنقول لأنسيبل: "استخدم الـ Bastion عشان توصل لأي حد تاني"
+                                // الـ -A بتعمل Forwarding للـ SSH Agent
+                                ansible_ssh_common_args: "-o ProxyCommand='ssh -A -W %h:%p -q ubuntu@${env.BASTION_IP} -o StrictHostKeyChecking=no'"
+                            ]
+                        )
+                    }
                 }
             }
         }
