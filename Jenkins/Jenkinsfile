@@ -1,0 +1,28 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Deploy Infrastructure') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init'
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+        
+        stage('Configure Servers') {
+            steps {
+                dir('ansible') {
+                
+                    ansiblePlaybook(
+                        playbook: 'playbooks/install_docker.yml',
+                        inventory: 'inventory/hosts.ini',
+                        credentialsId: 'aws-ssh-key',
+                        installation: 'ansible'
+                    )
+                }
+            }
+        }
+    }
+}
