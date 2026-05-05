@@ -7,6 +7,8 @@ This repository showcases a complete **CI/CD and Infrastructure as Code (IaC)** 
 
 ## 🏗️ Architecture Design
 ![Architecture](screenshots/image.png)
+
+
 The design follows a "Security-First" approach to protect internal resources:
 *   **VPC Customization:** High-availability networking with Public and Private Subnets.
 *   **The Bastion Strategy:** All application and database nodes are isolated in Private Subnets. Administrative access is managed strictly via a **Bastion Host (Jump Box)** using SSH tunneling.
