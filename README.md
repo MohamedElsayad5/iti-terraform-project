@@ -74,9 +74,10 @@ The Jenkins pipeline will automatically pick up the new Infrastructure IPs and r
 
 ---
 Teardown:
-
+```bash
 terraform destroy -auto-approve
 
 ---
+```bash
 **Developed by Mohamed Elsayed**  
 *Junior/Entry Level Cloud DevOps Engineer*
