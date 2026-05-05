@@ -4,7 +4,6 @@ pipeline {
     environment {
         AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY')
         AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_KEY')
-        // تعطيل التحقق من الـ Host Key عشان Ansible م يقفش يسأل Yes/No
         ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
     
@@ -14,12 +13,17 @@ pipeline {
                 sh 'terraform init'
                 sh 'terraform apply -auto-approve'
                 
-                // خطوة جوهرية: تحديث ملف الـ Inventory بالـ IPs الجديدة اللي تيرارفورم طلعها
+                // بنحفظ الـ Bastion IP في متغير عشان نستخدمه تحت
+                script {
+                    env.BASTION_IP = sh(script: "terraform output -raw bastion_public_ip", returnStdout: true).trim()
+                    env.APP_IP = sh(script: "terraform output -raw app_private_ip", returnStdout: true).trim()
+                }
+
                 sh '''
                     echo "[bastion_host]" > ansible/inventory/hosts.ini
-                    terraform output -raw bastion_public_ip >> ansible/inventory/hosts.ini
+                    echo "${BASTION_IP}" >> ansible/inventory/hosts.ini
                     echo "\n[app_server]" >> ansible/inventory/hosts.ini
-                    terraform output -raw app_private_ip >> ansible/inventory/hosts.ini
+                    echo "${APP_IP}" >> ansible/inventory/hosts.ini
                 '''
             }
         }
@@ -27,13 +31,16 @@ pipeline {
         stage('Configure Servers') {
             steps {
                 dir('ansible') {
+                    // شلنا القوس الزيادة واستخدمنا متغير الـ BASTION_IP
                     ansiblePlaybook(
                         playbook: 'playbooks/install_docker.yml',
                         inventory: 'inventory/hosts.ini',
                         credentialsId: 'aws-ssh-key',
                         installation: 'ansible',
-                        // إضافة اختيار تجاهل الـ Host Key Checking لزيادة التأكيد
-                        disableHostKeyChecking: true
+                        disableHostKeyChecking: true,
+                        extraVars: [
+                            ansible_ssh_common_args: "-o ProxyCommand='ssh -W %h:%p -q ubuntu@${env.BASTION_IP} -i my-terraform-key -o StrictHostKeyChecking=no'"
+                        ]
                     )
                 }
             }
