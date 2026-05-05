@@ -68,3 +68,15 @@ As a **Junior Cloud DevOps Engineer**, this project involved solving several rea
    cd terraform/
    terraform init
    terraform apply -auto-approve
+
+Configuration:
+The Jenkins pipeline will automatically pick up the new Infrastructure IPs and run the Ansible playbooks
+
+---
+Teardown:
+
+terraform destroy -auto-approve
+
+---
+**Developed by Mohamed Elsayed**  
+*Junior/Entry Level Cloud DevOps Engineer*
